@@ -34,14 +34,14 @@ DL/
 └── README.md                 # Project readme
 
 
-
+---
 ### Requirements before run:
 
 ultralytics
 matplotlib
 pandas
 opencv-python
-
+---
 ### Dataset Format
 
 Each image in images/train/ or images/val/ must have a matching .txt file in labels/train/ or labels/val/. Each label file contains YOLO-format annotations:
@@ -54,7 +54,7 @@ Example for image001.txt:
 
 0 0.543 0.633 0.112 0.098
 3 0.300 0.500 0.070 0.120
-
+---
 ### Compile Sequence
 1. python scripts/convert.py
 2. python scripts/yolo.py
