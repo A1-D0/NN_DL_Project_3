@@ -8,6 +8,8 @@ import csv
 import torch
 import torchvision
 import visdrone_to_coco
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 from torchvision import transforms
 from torchvision.models.detection.faster_rcnn import fasterrcnn_resnet50_fpn
@@ -15,14 +17,62 @@ from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from PIL import Image
 from tqdm import tqdm
+from torchvision.transforms import ToTensor
 
-def load_model() -> torchvision.models.detection.FasterRCNN:
+
+def show_prediction(model, image_path, threshold=0.5, device="cuda", label_map=None):
     '''
-    Load a pre-trained Faster R-CNN model with ResNet50-FPN backbone.
+    Run prediction on a single image and display results with bounding boxes and labels.
+    
+    :param model: Pretrained object detection model
+    :param image_path: Path to input image
+    :param threshold: Confidence threshold to display boxes
+    :param device: 'cuda' or 'cpu'
+    '''
+    if label_map is None:
+        print("Label map is not provided. Please provide a label map.")
+        return None
 
-    :return: PyTorch Faster R-CNN model in evaluation mode.
+    # load and prepare image
+    img = Image.open(image_path).convert("RGB")
+    img_tensor = ToTensor()(img).unsqueeze(0).to(device)
+
+    # inference
+    model.eval()
+    with torch.no_grad():
+        preds = model(img_tensor)[0]
+
+    # setup plot
+    fig, ax = plt.subplots(1, figsize=(12, 8))
+    ax.imshow(img)
+
+    for box, score, label in zip(preds["boxes"], preds["scores"], preds["labels"]):
+        if score < threshold:
+            continue
+        x1, y1, x2, y2 = box.tolist()
+        label_name = label_map.get(label.item(), str(label.item()))
+        ax.add_patch(patches.Rectangle(
+            (x1, y1), x2 - x1, y2 - y1,
+            linewidth=2, edgecolor='lime', facecolor='none'
+        ))
+        ax.text(x1, y1 - 5, f'{label_name} ({score:.2f})',
+                color='white', fontsize=10, bbox=dict(facecolor='green', alpha=0.5))
+
+    plt.axis('off')
+    plt.title("Predictions")
+    plt.show()
+
+
+
+def load_model(device: torch.device):
+    '''
+    Load a pre-trained Faster R-CNN model and move it to the specified device.
+    
+    :param device: Device to load the model onto ('cpu' or 'cuda').
+    :return: Torch model on specified device.
     '''
     model = fasterrcnn_resnet50_fpn(pretrained=True)
+    model.to(device)
     model.eval()
     return model
 
@@ -39,19 +89,22 @@ def prepare_image(img_path: str) -> torch.Tensor:
     img = Image.open(img_path).convert("RGB")
     return transform(img)
 
-def run_inference_on_dataset(model, image_dir: str, coco_gt: COCO) -> list:
+def run_inference_on_dataset(model, image_dir: str, coco_gt: COCO, device: torch.device) -> list:
     '''
-    Run object detection inference on the dataset.
+    Run object detection inference on the dataset using specified device.
 
     :param model: Pre-trained detection model.
-    :param image_dir: Directory containing VisDrone images.
-    :param coco_gt: COCO ground-truth object for referencing image IDs.
+    :param image_dir: Directory containing images.
+    :param coco_gt: COCO object for referencing image IDs.
+    :param device: Device to perform inference on ('cpu' or 'cuda').
     :return: List of predictions in COCO detection format.
     '''
     results = []
+
     for img_info in tqdm(coco_gt.dataset['images'], desc="Running Inference"):
         img_path = os.path.join(image_dir, img_info['file_name'])
-        image_tensor = prepare_image(img_path).unsqueeze(0)
+        image_tensor = prepare_image(img_path).unsqueeze(0).to(device)
+        
         with torch.no_grad():
             preds = model(image_tensor)[0]
 
@@ -120,20 +173,38 @@ def main() -> None:
     save_results = os.path.join(resnet_output_dir, 'evaluation_results.csv')
 
     # convert VisDrone annotations to COCO
-    visdrone_to_coco.convert_visdrone_to_coco(
-        image_dir=image_dir,
-        anno_dir=anno_dir,
-        output_json=annotation_json
-    )
+    # visdrone_to_coco.convert_visdrone_to_coco(
+    #     image_dir=image_dir,
+    #     anno_dir=anno_dir,
+    #     output_json=annotation_json
+    # )
 
-    exit(1)
+    # check CUDA availability
+    print("CUDA available:", torch.cuda.is_available())
+    print("CUDA device count:", torch.cuda.device_count())
+    print("Current device:", torch.cuda.current_device() if torch.cuda.is_available() else "CPU")
 
     # load annotations and model
     coco_gt = COCO(annotation_json)
-    model = load_model()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # enable GPU use if available
+    model = load_model(device)
+
+    # test one example
+    label_map = {
+    0: "pedestrian", 1: "people", 2: "bicycle", 3: "car", 4: "van",
+    5: "truck", 6: "tricycle", 7: "awning-tricycle", 8: "bus", 9: "motor", 10: "others"
+    }
+    show_prediction(model, os.path.join(image_dir, '0000002_00005_d_0000014.jpg'), threshold=0.5, device=device, label_map=label_map)
+    exit(2)
 
     # run inference and save predictions
-    predictions = run_inference_on_dataset(model, image_dir, coco_gt)
+    predictions = run_inference_on_dataset(model, image_dir, coco_gt, device)
+
+    # print five predictions
+    print("First five predictions:")
+    for pred in predictions[:5]:
+        print(pred)
+
 
     # save predictions to JSON
     with open(output_json, 'w') as f:
