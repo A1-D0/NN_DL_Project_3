@@ -1,11 +1,13 @@
 '''
 Description:
+How to Run: 
 '''
 
 import os
 import json
 import csv
 import torch
+import argparse
 import torchvision
 import visdrone_to_coco
 import matplotlib.pyplot as plt
@@ -89,7 +91,7 @@ def prepare_image(img_path: str) -> torch.Tensor:
     img = Image.open(img_path).convert("RGB")
     return transform(img)
 
-def run_inference_on_dataset(model, image_dir: str, coco_gt: COCO, device: torch.device) -> list:
+def run_inference_on_dataset(model, image_dir: str, coco_gt: COCO, device: torch.device, test_size: int=0) -> list:
     '''
     Run object detection inference on the dataset using specified device.
 
@@ -97,6 +99,7 @@ def run_inference_on_dataset(model, image_dir: str, coco_gt: COCO, device: torch
     :param image_dir: Directory containing images.
     :param coco_gt: COCO object for referencing image IDs.
     :param device: Device to perform inference on ('cpu' or 'cuda').
+    :param test_size: Number of images to test.
     :return: List of predictions in COCO detection format.
     '''
     results = []
@@ -117,6 +120,9 @@ def run_inference_on_dataset(model, image_dir: str, coco_gt: COCO, device: torch
                 "bbox": [x1, y1, width, height],
                 "score": score.item()
             })
+        
+        if len(results) >= test_size and test_size > 0:
+            break
 
     return results
 
@@ -157,7 +163,13 @@ def evaluate_coco(coco_gt: COCO, coco_dt_json: str, save_csv_path: str = "conver
     print(f"Evaluation summary saved to: {save_csv_path}")
 
 def main() -> None:
-    
+    parser = argparse.ArgumentParser(description="Evaluate ResNet on VisDrone dataset")
+    parser.add_argument('-test_size', type=int, required=False, default=0, help="Test size (number of images to processes) (Optional)")
+    args = parser.parse_args()
+    test_size = args.test_size
+
+    if test_size > 0: print(f"Test size: {test_size}")
+
     # set paths
     VisDrone2019_dir = os.path.join(os.pardir, os.pardir, 'data', 'VisDrone2019-DET-train')
     image_dir = os.path.join(VisDrone2019_dir, 'images')
@@ -195,16 +207,16 @@ def main() -> None:
     5: "truck", 6: "tricycle", 7: "awning-tricycle", 8: "bus", 9: "motor", 10: "others"
     }
     show_prediction(model, os.path.join(image_dir, '0000002_00005_d_0000014.jpg'), threshold=0.5, device=device, label_map=label_map)
-    exit(2)
 
     # run inference and save predictions
-    predictions = run_inference_on_dataset(model, image_dir, coco_gt, device)
+    predictions = run_inference_on_dataset(model, image_dir, coco_gt, device, test_size)
 
     # print five predictions
     print("First five predictions:")
     for pred in predictions[:5]:
         print(pred)
 
+    exit(3)
 
     # save predictions to JSON
     with open(output_json, 'w') as f:
@@ -213,6 +225,8 @@ def main() -> None:
 
     # evaluate and save results
     evaluate_coco(coco_gt, output_json, save_csv_path=save_results)
+
+    exit(0)
 
 if __name__ == "__main__":
     main()
