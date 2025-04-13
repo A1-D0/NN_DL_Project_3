@@ -12,6 +12,9 @@ from ultralytics import YOLO
 def load_yolov3_model():
     """
     Load pretrained YOLOv3 model.
+
+    Returns:
+        YOLOv3 model instance
     """
     return YOLO('yolov3.pt')
 
@@ -79,6 +82,7 @@ def save_yolo_predictions(results_list, output_csv):
 
     df = pd.DataFrame(data, columns=["filename", "class_id", "confidence", "x1", "y1", "x2", "y2"])
     df.to_csv(output_csv, index=False)
+    print("Saved YOLOv3 predictions to", output_csv)
 
 
 def run_yolov3_on_custom_image(model, img_path, conf=0.25, iou=0.45, show=True):
