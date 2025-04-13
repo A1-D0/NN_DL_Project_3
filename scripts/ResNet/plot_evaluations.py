@@ -237,7 +237,7 @@ def main() -> None:
     plot_prf_vs_conf(prf_csv, os.path.join(output_dir, "plots", "precision_recall_f1_vs_conf.png"))
     
     print("Displaying Precision-Recall Curve image...")
-    display_pr_curve(pr_curve_png) #, os.path.join(output_dir, "plots", "precision_recall_curve.png"))
+    display_pr_curve(pr_curve_png)
     
     print("Plotting per-class AP metrics...")
     plot_per_class_ap(per_class_csv, os.path.join(output_dir, "plots", "per_class_metrics.png"))

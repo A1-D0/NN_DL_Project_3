@@ -1,6 +1,6 @@
 '''
-Description:
-How to Run: 
+Description: Evaluate a pre-trained ResNet model on the VisDrone dataset using COCO metrics.
+How to Run: python evaluate_ResNet.py --test_size n
 '''
 
 import numpy as np
@@ -123,46 +123,6 @@ def run_inference_on_dataset(model, image_dir: str, coco_gt: COCO, device: torch
             break
 
     return results
-
-# def evaluate_coco(coco_gt: COCO, coco_dt_json: str, save_csv_path: str) -> None:
-#     '''
-#     Evaluate predictions using COCO metrics and save results to CSV.
-
-#     :param coco_gt: COCO object containing ground-truth annotations.
-#     :param coco_dt_json: Path to the prediction results in COCO format.
-#     :param save_csv_path: Path to save the evaluation results as a CSV.
-#     '''
-#     coco_dt = coco_gt.loadRes(coco_dt_json)
-#     coco_eval = COCOeval(coco_gt, coco_dt, 'bbox')
-#     coco_eval.evaluate()
-#     coco_eval.accumulate()
-#     coco_eval.summarize()
-
-#     # save summarized metrics to CSV
-#     metric_names = [
-#         "AP@[0.50:0.95]",
-#         "AP@0.50",
-#         "AP@0.75",
-#         "AP (small)",
-#         "AP (medium)",
-#         "AP (large)",
-#         "AR@[0.50:0.95]",
-#         "AR (small)",
-#         "AR (medium)",
-#         "AR (large)"
-#     ]
-
-#     with open(save_csv_path, mode='w', newline='') as file:
-#         writer = csv.writer(file)
-#         writer.writerow(["Metric", "Value"])
-#         for name, value in zip(metric_names, coco_eval.stats):
-#             writer.writerow([name, round(value, 4)])
-
-#     print(f"Evaluation summary saved to: {save_csv_path}")
-
-
-
-
 
 def save_summary_metrics(coco_eval: COCOeval, output_dir: str) -> None:
     '''
@@ -351,12 +311,6 @@ def evaluate_coco(coco_gt: COCO, coco_dt_json: str, output_dir: str) -> None:
     save_per_class_metrics(coco_eval, coco_gt, output_dir)
     save_confusion_matrix(coco_eval, coco_gt, coco_dt, output_dir)
 
-
-
-
-
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate ResNet on VisDrone dataset")
     parser.add_argument('-test_size', type=int, required=False, default=0, help="Test size (number of images to processes) (Optional)")
@@ -380,11 +334,14 @@ def main() -> None:
     save_results = os.path.join(resnet_output_dir, 'evaluation_results.csv')
 
     # convert VisDrone annotations to COCO
-    # visdrone_to_coco.convert_visdrone_to_coco(
-    #     image_dir=image_dir,
-    #     anno_dir=anno_dir,
-    #     output_json=annotation_json
-    # )
+    if os.path.exists(annotation_json): print(f"Annotation JSON already exists at {annotation_json}\tSkipping conversion.")
+    else:
+        print(f"Converting VisDrone annotations to COCO format...")
+        visdrone_to_coco.convert_visdrone_to_coco(
+            image_dir=image_dir,
+            anno_dir=anno_dir,
+            output_json=annotation_json
+        )
 
     # check CUDA availability
     print("CUDA available:", torch.cuda.is_available())
