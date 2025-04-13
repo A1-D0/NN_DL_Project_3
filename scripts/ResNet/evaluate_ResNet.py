@@ -1,6 +1,6 @@
 '''
 Description: Evaluate a pre-trained ResNet model on the VisDrone dataset using COCO metrics.
-How to Run: python evaluate_ResNet.py --test_size n
+How to Run: python evaluate_ResNet.py -test_size n
 '''
 
 import numpy as np
@@ -331,7 +331,6 @@ def main() -> None:
     resnet_output_dir = os.path.join(os.pardir, os.pardir, 'output', 'ResNet')
     os.makedirs(resnet_output_dir, exist_ok=True)
     output_json = os.path.join(resnet_output_dir, 'predictions.json')
-    save_results = os.path.join(resnet_output_dir, 'evaluation_results.csv')
 
     # convert VisDrone annotations to COCO
     if os.path.exists(annotation_json): print(f"Annotation JSON already exists at {annotation_json}\tSkipping conversion.")

@@ -1,0 +1,11 @@
+Class,AP@[0.50:0.95]
+pedestrian,0.0
+people,0.0258
+bicycle,0.0002
+car,0.0
+van,0.0011
+truck,0.0
+tricycle,0.0052
+awning-tricycle,0.0
+bus,0.0012
+motor,0.0002
