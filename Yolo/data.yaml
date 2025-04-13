@@ -1,0 +1,5 @@
+train: /home/sahau24/csc790project/DL/data/VisDrone/images/train
+val: /home/sahau24/csc790project/DL/data/VisDrone/images/val
+
+nc: 10
+names: ['pedestrian', 'people', 'bicycle', 'car', 'van', 'truck', 'tricycle', 'awning-tricycle', 'bus', 'motor']
