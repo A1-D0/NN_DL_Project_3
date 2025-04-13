@@ -3,6 +3,7 @@ Description:
 How to Run: 
 '''
 
+import numpy as np
 import os
 import json
 import csv
@@ -20,7 +21,6 @@ from pycocotools.cocoeval import COCOeval
 from PIL import Image
 from tqdm import tqdm
 from torchvision.transforms import ToTensor
-
 
 def show_prediction(model, image_path, threshold=0.5, device="cuda", label_map=None):
     '''
@@ -63,8 +63,6 @@ def show_prediction(model, image_path, threshold=0.5, device="cuda", label_map=N
     plt.axis('off')
     plt.title("Predictions")
     plt.show()
-
-
 
 def load_model(device: torch.device):
     '''
@@ -126,41 +124,238 @@ def run_inference_on_dataset(model, image_dir: str, coco_gt: COCO, device: torch
 
     return results
 
-def evaluate_coco(coco_gt: COCO, coco_dt_json: str, save_csv_path: str = "converted/eval_summary.csv") -> None:
-    '''
-    Evaluate predictions using COCO metrics and save results to CSV.
+# def evaluate_coco(coco_gt: COCO, coco_dt_json: str, save_csv_path: str) -> None:
+#     '''
+#     Evaluate predictions using COCO metrics and save results to CSV.
 
-    :param coco_gt: COCO object containing ground-truth annotations.
-    :param coco_dt_json: Path to the prediction results in COCO format.
-    :param save_csv_path: Path to save the evaluation results as a CSV.
+#     :param coco_gt: COCO object containing ground-truth annotations.
+#     :param coco_dt_json: Path to the prediction results in COCO format.
+#     :param save_csv_path: Path to save the evaluation results as a CSV.
+#     '''
+#     coco_dt = coco_gt.loadRes(coco_dt_json)
+#     coco_eval = COCOeval(coco_gt, coco_dt, 'bbox')
+#     coco_eval.evaluate()
+#     coco_eval.accumulate()
+#     coco_eval.summarize()
+
+#     # save summarized metrics to CSV
+#     metric_names = [
+#         "AP@[0.50:0.95]",
+#         "AP@0.50",
+#         "AP@0.75",
+#         "AP (small)",
+#         "AP (medium)",
+#         "AP (large)",
+#         "AR@[0.50:0.95]",
+#         "AR (small)",
+#         "AR (medium)",
+#         "AR (large)"
+#     ]
+
+#     with open(save_csv_path, mode='w', newline='') as file:
+#         writer = csv.writer(file)
+#         writer.writerow(["Metric", "Value"])
+#         for name, value in zip(metric_names, coco_eval.stats):
+#             writer.writerow([name, round(value, 4)])
+
+#     print(f"Evaluation summary saved to: {save_csv_path}")
+
+
+
+
+
+def save_summary_metrics(coco_eval: COCOeval, output_dir: str) -> None:
     '''
+    Save summary metrics (mAP and AR) from COCOeval to a CSV file in the output directory.
+
+    :param coco_eval: COCOeval object that has been evaluated and accumulated.
+    :param output_dir: Directory where the summary CSV will be saved.
+    '''
+    summary_csv = os.path.join(output_dir, "eval_summary.csv")
+    metric_names = [
+        "AP@[0.50:0.95]", "AP@0.50", "AP@0.75", 
+        "AP (small)", "AP (medium)", "AP (large)",
+        "AR@[0.50:0.95]", "AR (small)", "AR (medium)", "AR (large)"
+    ]
+    with open(summary_csv, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Metric", "Value"])
+        for name, value in zip(metric_names, coco_eval.stats):
+            writer.writerow([name, round(value, 4)])
+    print(f"Saved mAP/AR summary to {summary_csv}")
+
+def save_precision_recall_f1_vs_conf(coco_eval: COCOeval, output_dir: str) -> None:
+    '''
+    Compute precision, recall, and F1 score versus confidence using COCOeval results,
+    and save these values to a CSV file in the output directory.
+
+    :param coco_eval: COCOeval object after evaluation.
+    :param output_dir: Directory where the CSV file will be saved.
+    '''
+    # extract precision array: shape [T, R, K, A, M]
+    precision = coco_eval.eval['precision']
+    # use the first IoU threshold, first area range, first maxDet index.
+    iou_thr_idx, area_idx, max_det_idx = 0, 0, 0
+    precisions = precision[iou_thr_idx, :, :, area_idx, max_det_idx]  # shape: [R, K]
+    # average precision over all classes (mean over axis 1 of recall thresholds)
+    precision_avg = np.mean(precisions, axis=1)
+    recall = coco_eval.params.recThrs  # array of recall thresholds (usually 101 values)
+    # use "1 - recall" as a proxy for confidence (for plotting)
+    confidence = 1 - recall
+    f1_scores = 2 * (precision_avg * recall) / (precision_avg + recall + 1e-6)
+
+    prf_csv = os.path.join(output_dir, "precision_recall_f1_vs_conf.csv")
+    with open(prf_csv, mode='w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Confidence", "Precision", "Recall", "F1"])
+        for c, p, r, f1 in zip(confidence, precision_avg, recall, f1_scores):
+            writer.writerow([round(c, 4), round(p, 4), round(r, 4), round(f1, 4)])
+    print(f"Saved precision/recall/F1 vs confidence to {prf_csv}")
+
+def save_pr_curve(coco_eval: COCOeval, output_dir: str) -> None:
+    '''
+    Generate a Precision-Recall curve from COCOeval results and save the plot as an image.
+
+    :param coco_eval: COCOeval object after evaluation.
+    :param output_dir: Directory where the PR curve image will be saved.
+    '''
+    precision = coco_eval.eval['precision']
+    iou_thr_idx, area_idx, max_det_idx = 0, 0, 0
+    precisions = precision[iou_thr_idx, :, :, area_idx, max_det_idx]  # shape: [R, K]
+    precision_avg = np.mean(precisions, axis=1)
+    recall = coco_eval.params.recThrs
+
+    pr_curve_path = os.path.join(output_dir, "precision_recall_curve.png")
+    plt.figure(figsize=(8, 6))
+    plt.plot(recall, precision_avg, label="PR Curve", color="blue")
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title("Precision-Recall Curve (IoU=0.50:0.95)")
+    plt.grid(True)
+    plt.savefig(pr_curve_path, bbox_inches='tight')
+    plt.close()
+    print(f"Saved PR curve image to {pr_curve_path}")
+
+def save_per_class_metrics(coco_eval: COCOeval, coco_gt: COCO, output_dir: str) -> None:
+    '''
+    Compute per-class Average Precision (AP) at IoU=0.50:0.95 and save the results to a CSV file.
+
+    :param coco_eval: COCOeval object after evaluation.
+    :param coco_gt: COCO object containing ground-truth annotations.
+    :param output_dir: Directory where the per-class metrics CSV will be saved.
+    '''
+    # retrieve class names from COCO ground truth
+    cats = coco_gt.loadCats(coco_gt.getCatIds())
+    class_names = [cat["name"] for cat in cats]
+    num_classes = len(class_names)
+    # extract precision array.
+    precision = coco_eval.eval['precision']
+    iou_thr_idx, area_idx, max_det_idx = 0, 0, 0
+    per_class_ap = []
+    for k in range(num_classes):
+        class_prec = precision[iou_thr_idx, :, k, area_idx, max_det_idx]
+        valid = class_prec[class_prec > -1]
+        ap = np.mean(valid) if valid.size else float('nan')
+        per_class_ap.append(ap)
+
+    per_class_csv = os.path.join(output_dir, "per_class_metrics.csv")
+    with open(per_class_csv, mode="w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Class", "AP@[0.50:0.95]"])
+        for name, ap in zip(class_names, per_class_ap):
+            writer.writerow([name, round(ap, 4)])
+    print(f"Saved per-class AP to {per_class_csv}")
+
+def save_confusion_matrix(coco_eval: COCOeval, coco_gt: COCO, coco_dt, output_dir: str) -> None:
+    '''
+    Compute a raw confusion matrix from ground truth and detected annotations, and save it to a CSV file.
+    This function uses an IoU threshold of 0.5 to match predictions to ground truth.
+
+    :param coco_eval: COCOeval object that has been evaluated.
+    :param coco_gt: COCO object containing ground-truth annotations.
+    :param coco_dt: COCO object containing detected annotations.
+    :param output_dir: Directory where the confusion matrix CSV will be saved.
+    '''
+    # retrieve class names
+    cats = coco_gt.loadCats(coco_gt.getCatIds())
+    class_names = [cat["name"] for cat in cats]
+    num_classes = len(class_names)
+    confusion = np.zeros((num_classes, num_classes), dtype=int)
+    img_ids = coco_gt.getImgIds()
+
+    iou_threshold = 0.5
+    for img_id in img_ids:
+        gt_ann_ids = coco_gt.getAnnIds(imgIds=[img_id])
+        dt_ann_ids = coco_dt.getAnnIds(imgIds=[img_id])
+        gts = coco_gt.loadAnns(gt_ann_ids)
+        dts = coco_dt.loadAnns(dt_ann_ids)
+        if not gts or not dts:
+            continue
+
+        # compute IoUs for current image
+        ious = coco_eval.computeIoU(imgId=img_id, catId=None)
+        if ious is None or len(ious) == 0: continue
+        if isinstance(ious, list): ious = ious[0]
+
+        matched_gt = set()
+        for dt_idx, dt in enumerate(dts):
+            best_iou = 0
+            best_gt_idx = -1
+            for gt_idx, gt in enumerate(gts):
+                if gt_idx in matched_gt:
+                    continue
+                iou = ious[dt_idx, gt_idx]
+                if iou >= iou_threshold and iou > best_iou:
+                    best_iou = iou
+                    best_gt_idx = gt_idx
+            if best_gt_idx >= 0:
+                gt_cls = gts[best_gt_idx]['category_id']
+                dt_cls = dt['category_id']
+                matched_gt.add(best_gt_idx)
+                confusion[gt_cls][dt_cls] += 1
+    cm_path = os.path.join(output_dir, "confusion_matrix.csv")
+    with open(cm_path, mode='w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([""] + class_names)
+        for i, row in enumerate(confusion):
+            writer.writerow([class_names[i]] + list(row))
+    print(f"Saved confusion matrix to {cm_path}")
+
+def evaluate_coco(coco_gt: COCO, coco_dt_json: str, output_dir: str) -> None:
+    '''
+    Evaluate predictions using COCO metrics and save multiple outputs:
+    - Summary mAP/AR metrics
+    - Precision, Recall, and F1 vs Confidence data
+    - Precision-Recall curve image
+    - Per-class AP metrics
+    - Confusion matrix data
+    
+    :param coco_gt: COCO object containing ground-truth annotations.
+    :param coco_dt_json: Path to the detection results in COCO format.
+    :param output_dir: Directory where all result files will be saved.
+    '''
+    os.makedirs(output_dir, exist_ok=True)
+    print("Evaluating with COCOeval...")
+    
+    # load detection results
     coco_dt = coco_gt.loadRes(coco_dt_json)
     coco_eval = COCOeval(coco_gt, coco_dt, 'bbox')
     coco_eval.evaluate()
     coco_eval.accumulate()
     coco_eval.summarize()
 
-    # save summarized metrics to CSV
-    metric_names = [
-        "AP@[0.50:0.95]",
-        "AP@0.50",
-        "AP@0.75",
-        "AP (small)",
-        "AP (medium)",
-        "AP (large)",
-        "AR@[0.50:0.95]",
-        "AR (small)",
-        "AR (medium)",
-        "AR (large)"
-    ]
+    # save each output
+    save_summary_metrics(coco_eval, output_dir)
+    save_precision_recall_f1_vs_conf(coco_eval, output_dir)
+    save_pr_curve(coco_eval, output_dir)
+    save_per_class_metrics(coco_eval, coco_gt, output_dir)
+    save_confusion_matrix(coco_eval, coco_gt, coco_dt, output_dir)
 
-    with open(save_csv_path, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Metric", "Value"])
-        for name, value in zip(metric_names, coco_eval.stats):
-            writer.writerow([name, round(value, 4)])
 
-    print(f"Evaluation summary saved to: {save_csv_path}")
+
+
+
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate ResNet on VisDrone dataset")
@@ -216,15 +411,14 @@ def main() -> None:
     for pred in predictions[:5]:
         print(pred)
 
-    exit(3)
-
     # save predictions to JSON
     with open(output_json, 'w') as f:
         json.dump(predictions, f)
     print(f"Saved predictions to {output_json}")
 
     # evaluate and save results
-    evaluate_coco(coco_gt, output_json, save_csv_path=save_results)
+    coco_gt = COCO(annotation_json)
+    evaluate_coco(coco_gt, output_json, resnet_output_dir)
 
     exit(0)
 
