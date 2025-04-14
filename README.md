@@ -74,6 +74,7 @@ Example for image001.txt:
 
 ### 2. VisDrone Object Detection using Faster R-CNN with ResNet50-FPN backbone
 
+```bash
 ### Requirements before run
 numpy
 os
@@ -100,3 +101,4 @@ From root...
 3. python plot_evaluations.py
 #### Optional
 4. python label_images.py (OPTIONAL)
+```
