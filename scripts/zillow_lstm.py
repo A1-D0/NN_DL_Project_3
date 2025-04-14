@@ -9,9 +9,10 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Bidirectional, Dense
 import matplotlib.pyplot as plt
+import tensorflow as tf
 
 # =======================
-# Data Preprocessing
+# data preprocessing
 # =======================
 def load_and_preprocess_data(filepath, time_steps=12):
     df = pd.read_csv(filepath)
@@ -58,10 +59,10 @@ def create_sequences(data, time_steps):
     return np.array(X), np.array(y)
 
 # =======================
-# Model Definition
+# model definition
 # =======================
 def build_bilstm_model(time_steps, num_features=1):
-    # Uses a lightweight BiLSTM with 32 units for faster training and sufficient capacity for general trends
+    # lightweight bi-lstm w 32 units
     model = Sequential()
     model.add(Bidirectional(LSTM(32), input_shape=(time_steps, num_features)))
     model.add(Dense(1))
@@ -69,7 +70,7 @@ def build_bilstm_model(time_steps, num_features=1):
     return model
 
 # =======================
-# Evaluation
+# evaluation
 # =======================
 def evaluate_model(model, X_test, y_test, scaler):
     y_pred = model.predict(X_test)
@@ -84,7 +85,7 @@ def evaluate_model(model, X_test, y_test, scaler):
     return y_test_inv, y_pred_inv
 
 # =======================
-# Visualization
+# visualization
 # =======================
 def plot_predictions(y_test_inv, y_pred_inv):
     plt.figure(figsize=(12, 6))
@@ -98,14 +99,23 @@ def plot_predictions(y_test_inv, y_pred_inv):
     plt.show()
 
 # =======================
-# Main Execution Block
+# main execution block
 # =======================
-if __name__ == '__main__':
-    
-    filepath = ''
-    X_train, y_train, X_test, y_test, scaler = load_and_preprocess_data(filepath)
 
-    model = build_bilstm_model(time_steps=12)
+# set seeds for reproducibility
+np.random.seed(42)
+tf.random.set_seed(42)
+
+# define shared hyperparameters
+TIME_STEPS = 12
+
+
+if __name__ == '__main__':
+    # abs path to data 
+    filepath = '/Users/anthonyroca/csc_375/NN_DL_Project_3/data/zillow_hvi.csv'
+    X_train, y_train, X_test, y_test, scaler = load_and_preprocess_data(filepath, time_steps=TIME_STEPS)
+
+    model = build_bilstm_model(time_steps=TIME_STEPS)
     model.fit(X_train, y_train, epochs=25, batch_size=32, validation_split=0.1, verbose=1)
 
     y_test_inv, y_pred_inv = evaluate_model(model, X_test, y_test, scaler)
