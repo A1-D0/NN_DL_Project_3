@@ -102,3 +102,33 @@ From root...
 #### Optional
 4. python label_images.py (OPTIONAL)
 ```
+
+### 3. Recurrent Neural Networks (RNNs) for Time Series Analysis
+
+A time series regression pipeline using a Bidirectional LSTM to forecast Zillow's ZHVI (Zillow Home Value Index) across multiple regions.
+
+---
+```bash
+### Requirements before run
+tensorflow
+pandas
+numpy
+scikit-learn
+matplotlib
+
+### How to run
+From root...
+1. cd ./scripts/
+2. python zillow_lstm.py
+```
+
+This will:
+- Load and preprocess all ZHVI time series.
+- Train a BiLSTM model.
+- Save model to output/Zillow/bilstm_model.h5
+- Save evaluation metrics and prediction plots to:
+   - output/Zillow/zillow_hvi.csv/metrics.txt
+   - output/Zillow/zillow_hvi.csv/predictions.png
+- A bonus residual analysis for data leakage santiy check saved to:
+   - output/Zillow/residuals.png
+
