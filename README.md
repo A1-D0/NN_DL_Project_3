@@ -68,3 +68,35 @@ Example for image001.txt:
    sbatch test_DL.slurm
 
 
+```
+
+---
+
+### 2. VisDrone Object Detection using Faster R-CNN with ResNet50-FPN backbone
+
+### Requirements before run
+numpy
+os
+json
+csv
+torch
+argparse
+torchvision
+visdrone_to_coco
+matplotlib.pyplot
+matplotlib.patches
+torchvision.transforms
+torchvision.models.detection.faster_rcnn
+pycocotools.coco
+pycocotools.cocoeval
+PIL.Image
+tqdm
+torchvision.transforms.ToTensor
+
+### How to run
+From root...
+1. cd ./scripts/ResNet/
+2. python evaluate_ResNet.py
+3. python plot_evaluations.py
+#### Optional
+4. python label_images.py (OPTIONAL)
