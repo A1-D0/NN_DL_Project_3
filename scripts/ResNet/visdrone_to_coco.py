@@ -1,5 +1,6 @@
 '''
 Description: Convert VisDrone annotations to COCO format for evaluate_ResNet.py.
+How to Run: python visdrone_to_coco.py
 '''
 import os
 import json

@@ -1,5 +1,6 @@
 '''
 Description: Plot evaluation metrics from COCO-formatted annotations and predictions, including mAP, Precision-Recall curves, and confusion matrix.
+How to Run: python plot_evaluations.py
 '''
 import numpy as np
 import os
