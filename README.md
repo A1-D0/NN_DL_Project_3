@@ -118,7 +118,7 @@ matplotlib
 
 ### How to run
 From root...
-1. cd ./scripts/
+1. cd ./scripts/Zillow
 2. python zillow_lstm.py
 ```
 
