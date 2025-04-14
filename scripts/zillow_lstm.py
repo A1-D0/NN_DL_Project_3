@@ -115,6 +115,22 @@ def plot_predictions(y_test_inv, y_pred_inv):
     plt.savefig(plot_path)
     print(f"[INFO] Predictions plot saved to {plot_path}")
 
+# =======================
+# residual plotting for data leakage sanity check (why are my results always so good?)
+# =======================
+def plot_residuals(y_test_inv, y_pred_inv):
+    residuals = y_test_inv.flatten() - y_pred_inv.flatten()
+    output_dir = '/Users/anthonyroca/csc_375/NN_DL_Project_3/output/Zillow'
+    plt.figure(figsize=(10, 4))
+    plt.plot(residuals, color='red')
+    plt.title('Residuals (Actual - Predicted)')
+    plt.xlabel('Time')
+    plt.ylabel('Residual ZHVI')
+    plt.tight_layout()
+    residual_path = os.path.join(output_dir, 'residuals.png')
+    plt.savefig(residual_path)
+    print(f"[INFO] Residuals plot saved to {residual_path}")
+
 # set seeds for reproducibility
 np.random.seed(42)
 tf.random.set_seed(42)
@@ -155,3 +171,7 @@ if __name__ == '__main__':
     print("[INFO] Evaluating model...")
     y_test_inv, y_pred_inv = evaluate_model(model, X_test, y_test, scaler)
     plot_predictions(y_test_inv, y_pred_inv)
+
+    # data leakage or just that good?
+    print("[INFO] Plotting residuals...")
+    plot_residuals(y_test_inv, y_pred_inv)
