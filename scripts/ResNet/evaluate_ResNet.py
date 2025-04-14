@@ -1,6 +1,9 @@
 '''
-Description: Evaluate a pre-trained ResNet model on the VisDrone dataset using COCO metrics.
-How to Run: python evaluate_ResNet.py -test_size n
+Description: Evaluate a pre-trained ResNet model (Faster R-CNN with ResNet50-FPN backbone) on the VisDrone dataset using COCO metrics.
+This script runs inference, computes evaluation metrics (saving summary CSVs and plots), and (optionally) extracts feature maps from the backbone and saves them to a directory.
+How to Run: 
+    python evaluate_ResNet.py -test_size n -extract_fmaps (optional),
+    where n is the number of images to process.
 '''
 
 import numpy as np
@@ -21,6 +24,56 @@ from pycocotools.cocoeval import COCOeval
 from PIL import Image
 from tqdm import tqdm
 from torchvision.transforms import ToTensor
+
+def extract_feature_maps(model, image_dir: str, fmaps_output_dir: str, device: torch.device, test_size: int=0) -> None:
+    '''
+    Extract feature maps from the FPN backbone of the Faster R-CNN model for each image
+    and save the visualizations to the specified output directory.
+    
+    :param model: Pre-trained Faster R-CNN model.
+    :param image_dir: Directory containing input images.
+    :param fmaps_output_dir: Directory to save the extracted feature map images.
+    :param device: Device to run the model on.
+    :param test_size: Number of images to process (if 0, process all).
+    '''
+    os.makedirs(fmaps_output_dir, exist_ok=True)
+    feature_maps = {}
+
+    def fpn_hook(module, input, output):
+        # output is a dict of feature maps from different FPN layers
+        for key, fmap in output.items():
+            feature_maps[key] = fmap.detach().cpu()
+
+    hook_handle = model.backbone.register_forward_hook(fpn_hook)
+    image_files = sorted(os.listdir(image_dir))
+    processed = 0
+    for file_name in image_files:
+        img_path = os.path.join(image_dir, file_name)
+        img = Image.open(img_path).convert("RGB")
+        input_tensor = transforms.ToTensor()(img).unsqueeze(0).to(device)
+        with torch.no_grad():
+            _ = model(input_tensor)
+
+        # save feature maps for this image
+        for layer_key, fmap in feature_maps.items():
+            fmap = fmap.squeeze(0)  # shape: [C, H, W]
+            num_channels = min(6, fmap.shape[0])
+            fig, axes = plt.subplots(1, num_channels, figsize=(15, 5))
+            for i in range(num_channels):
+                axes[i].imshow(fmap[i], cmap='viridis')
+                axes[i].axis("off")
+                axes[i].set_title(f"Channel {i}")
+            plt.suptitle(f"{file_name} - Layer {layer_key}")
+            save_path = os.path.join(fmaps_output_dir, f"{os.path.splitext(file_name)[0]}_layer{layer_key}.png")
+            plt.tight_layout()
+            plt.savefig(save_path)
+            plt.close(fig)
+            print(f"Saved feature map: {save_path}")
+        feature_maps.clear()
+        processed += 1
+        if test_size > 0 and processed >= test_size:
+            break
+    hook_handle.remove()
 
 def show_prediction(model, image_path, threshold=0.5, device="cuda", label_map=None):
     '''
@@ -314,6 +367,7 @@ def evaluate_coco(coco_gt: COCO, coco_dt_json: str, output_dir: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate ResNet on VisDrone dataset")
     parser.add_argument('-test_size', type=int, required=False, default=0, help="Test size (number of images to processes) (Optional)")
+    parser.add_argument('-extract_fmaps', required=False, action='store_true', help="Extract feature maps from the model")
     args = parser.parse_args()
     test_size = args.test_size
 
@@ -336,11 +390,11 @@ def main() -> None:
     if os.path.exists(annotation_json): print(f"Annotation JSON already exists at {annotation_json}\tSkipping conversion.")
     else:
         print(f"Converting VisDrone annotations to COCO format...")
-        visdrone_to_coco.convert_visdrone_to_coco(
-            image_dir=image_dir,
-            anno_dir=anno_dir,
-            output_json=annotation_json
-        )
+        # visdrone_to_coco.convert_visdrone_to_coco(
+        #     image_dir=image_dir,
+        #     anno_dir=anno_dir,
+        #     output_json=annotation_json
+        # )
 
     # check CUDA availability
     print("CUDA available:", torch.cuda.is_available())
@@ -359,22 +413,29 @@ def main() -> None:
     }
     show_prediction(model, os.path.join(image_dir, '0000002_00005_d_0000014.jpg'), threshold=0.5, device=device, label_map=label_map)
 
-    # run inference and save predictions
-    predictions = run_inference_on_dataset(model, image_dir, coco_gt, device, test_size)
+    # # run inference and save predictions
+    # predictions = run_inference_on_dataset(model, image_dir, coco_gt, device, test_size)
 
-    # print five predictions
-    print("First five predictions:")
-    for pred in predictions[:5]:
-        print(pred)
+    # # print five predictions
+    # print("First five predictions:")
+    # for pred in predictions[:5]:
+    #     print(pred)
 
-    # save predictions to JSON
-    with open(output_json, 'w') as f:
-        json.dump(predictions, f)
-    print(f"Saved predictions to {output_json}")
+    # # save predictions to JSON
+    # with open(output_json, 'w') as f:
+    #     json.dump(predictions, f)
+    # print(f"Saved predictions to {output_json}")
 
-    # evaluate and save results
-    coco_gt = COCO(annotation_json)
-    evaluate_coco(coco_gt, output_json, resnet_output_dir)
+    # # evaluate and save results
+    # coco_gt = COCO(annotation_json)
+    # evaluate_coco(coco_gt, output_json, resnet_output_dir)
+
+
+    if args.extract_fmaps:
+        fmaps_output_dir = os.path.join(resnet_output_dir, "feature_maps")
+        print("Extracting feature maps...")
+        extract_feature_maps(model, image_dir, fmaps_output_dir, device, test_size)
+
 
     exit(0)
 
