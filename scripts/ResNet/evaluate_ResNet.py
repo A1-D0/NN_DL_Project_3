@@ -207,12 +207,15 @@ def save_precision_recall_f1_vs_conf(coco_eval: COCOeval, output_dir: str) -> No
     '''
     # extract precision array: shape [T, R, K, A, M]
     precision = coco_eval.eval['precision']
+    
     # use the first IoU threshold, first area range, first maxDet index.
     iou_thr_idx, area_idx, max_det_idx = 0, 0, 0
     precisions = precision[iou_thr_idx, :, :, area_idx, max_det_idx]  # shape: [R, K]
+    
     # average precision over all classes (mean over axis 1 of recall thresholds)
     precision_avg = np.mean(precisions, axis=1)
     recall = coco_eval.params.recThrs  # array of recall thresholds (usually 101 values)
+    
     # use "1 - recall" as a proxy for confidence (for plotting)
     confidence = 1 - recall
     f1_scores = 2 * (precision_avg * recall) / (precision_avg + recall + 1e-6)
@@ -261,7 +264,8 @@ def save_per_class_metrics(coco_eval: COCOeval, coco_gt: COCO, output_dir: str) 
     cats = coco_gt.loadCats(coco_gt.getCatIds())
     class_names = [cat["name"] for cat in cats]
     num_classes = len(class_names)
-    # extract precision array.
+    
+    # extract precision array
     precision = coco_eval.eval['precision']
     iou_thr_idx, area_idx, max_det_idx = 0, 0, 0
     per_class_ap = []
@@ -390,11 +394,11 @@ def main() -> None:
     if os.path.exists(annotation_json): print(f"Annotation JSON already exists at {annotation_json}\tSkipping conversion.")
     else:
         print(f"Converting VisDrone annotations to COCO format...")
-        # visdrone_to_coco.convert_visdrone_to_coco(
-        #     image_dir=image_dir,
-        #     anno_dir=anno_dir,
-        #     output_json=annotation_json
-        # )
+        visdrone_to_coco.convert_visdrone_to_coco(
+            image_dir=image_dir,
+            anno_dir=anno_dir,
+            output_json=annotation_json
+        )
 
     # check CUDA availability
     print("CUDA available:", torch.cuda.is_available())
@@ -413,29 +417,27 @@ def main() -> None:
     }
     show_prediction(model, os.path.join(image_dir, '0000002_00005_d_0000014.jpg'), threshold=0.5, device=device, label_map=label_map)
 
-    # # run inference and save predictions
-    # predictions = run_inference_on_dataset(model, image_dir, coco_gt, device, test_size)
+    # run inference and save predictions
+    predictions = run_inference_on_dataset(model, image_dir, coco_gt, device, test_size)
 
-    # # print five predictions
-    # print("First five predictions:")
-    # for pred in predictions[:5]:
-    #     print(pred)
+    # print five predictions
+    print("First five predictions:")
+    for pred in predictions[:5]:
+        print(pred)
 
-    # # save predictions to JSON
-    # with open(output_json, 'w') as f:
-    #     json.dump(predictions, f)
-    # print(f"Saved predictions to {output_json}")
+    # save predictions to JSON
+    with open(output_json, 'w') as f:
+        json.dump(predictions, f)
+    print(f"Saved predictions to {output_json}")
 
-    # # evaluate and save results
-    # coco_gt = COCO(annotation_json)
-    # evaluate_coco(coco_gt, output_json, resnet_output_dir)
+    # evaluate and save results
+    coco_gt = COCO(annotation_json)
+    evaluate_coco(coco_gt, output_json, resnet_output_dir)
 
-
-    if args.extract_fmaps:
+    if args.extract_fmaps: # get feature maps
         fmaps_output_dir = os.path.join(resnet_output_dir, "feature_maps")
         print("Extracting feature maps...")
         extract_feature_maps(model, image_dir, fmaps_output_dir, device, test_size)
-
 
     exit(0)
 
